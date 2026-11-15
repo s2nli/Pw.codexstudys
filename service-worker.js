@@ -1,4 +1,4 @@
-const CACHE_NAME = "codex-studys-shell-v15";
+const CACHE_NAME = "codex-studys-shell-v16";
 const SHELL_FILES = ["./index.html", "./batch.html", "./styles.css", "./macro.css", "./macro.js", "./app.js", "./profile.js", "./manifest.json", "./assets/icon-192.png", "./assets/icon-512.png", "./assets/pw-icon-192.png", "./assets/pw-icon-512.png"];
 
 self.addEventListener("install", (event) => {

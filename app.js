@@ -123,26 +123,62 @@ function mapCatalogRow(row) {
   };
 }
 
+const CATALOG_SOURCES = [
+  CATALOG_URL,
+  "https://cdn.jsdelivr.net/gh/studystark/studystark.github.io/batches/batches.json",
+  CATALOG_FALLBACK_URL
+];
+const CATALOG_LS_KEY = "cx-catalog-v2";
+
+function fetchCatalogFrom(url, ms) {
+  const ctrl = typeof AbortController !== "undefined" ? new AbortController() : null;
+  const timer = setTimeout(() => ctrl && ctrl.abort(), ms);
+  return fetch(url, { cache: "no-store", signal: ctrl ? ctrl.signal : undefined, headers: { Accept: "application/json" } })
+    .then((response) => {
+      if (!response.ok) throw new Error("HTTP " + response.status);
+      return response.json();
+    })
+    .then((data) => {
+      if (!data || !Array.isArray(data.data) || !data.data.length) throw new Error("Empty catalog");
+      return data;
+    })
+    .finally(() => clearTimeout(timer));
+}
+
+// All sources are tried at the same time; the first good answer wins (one slow/blocked source can't hang the page).
+function firstSuccess(promises) {
+  return new Promise((resolve, reject) => {
+    let pending = promises.length;
+    let firstError = null;
+    promises.forEach((promise) => promise.then(resolve, (error) => {
+      if (!firstError) firstError = error;
+      if (--pending === 0) reject(firstError);
+    }));
+  });
+}
+
 async function fetchCatalog() {
-  let json = null;
-  for (const url of [CATALOG_URL, CATALOG_FALLBACK_URL]) {
-    try {
-      const response = await fetch(url, { cache: "no-store", headers: { Accept: "application/json" } });
-      if (!response.ok) continue;
-      const data = await response.json();
-      if (data && Array.isArray(data.data)) { json = data; break; }
-    } catch (e) { /* try next source */ }
-  }
-  if (!json) throw new Error("Course library unavailable");
-  return json.data
+  const json = await firstSuccess(CATALOG_SOURCES.map((url) => fetchCatalogFrom(url, 12000)));
+  const list = json.data
     .filter((row) => row && row.batch_id && row.name)
     .map(mapCatalogRow)
     .sort((a, b) => String(b.updatedAt).localeCompare(String(a.updatedAt)));
+  try { localStorage.setItem(CATALOG_LS_KEY, JSON.stringify(list)); } catch (e) { /* storage full: ignore */ }
+  return list;
+}
+
+function readSavedCatalog() {
+  try {
+    const list = JSON.parse(localStorage.getItem(CATALOG_LS_KEY) || "null");
+    return Array.isArray(list) && list.length ? list : null;
+  } catch (e) { return null; }
 }
 
 async function loadBatches() {
-  const cached = readBatchCache();
+  const cached = readBatchCache() || readSavedCatalog();
   let usedCache = false;
+  // never leave the loading spinner up forever, even on a slow network
+  window.setTimeout(() => { const pre = $("#globalPreloader"); if (pre) pre.classList.add("hidden"); }, 4500);
   try {
     const grid = $("#batchGrid");
     if (cached) {
@@ -167,7 +203,7 @@ async function loadBatches() {
     console.error(error);
     if (!usedCache) {
       $("#resultsNote").textContent = "The course library could not be loaded.";
-      $("#batchGrid").innerHTML = '<div class="empty">Please refresh to reconnect to the course library.</div>';
+      $("#batchGrid").innerHTML = '<div class="empty">Course library did not load. Check your connection.<br><br><button class="btn btn-primary" type="button" onclick="loadBatches()">Retry</button></div>';
       showToast("Course library unavailable");
     }
   } finally {
