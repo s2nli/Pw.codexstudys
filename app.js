@@ -70,328 +70,10 @@ function openBatch(batch) {
   try { window.CXProfile && window.CXProfile.trackBatch(batch); } catch (e) {}
   renderRecentlyWatched();
   try { sessionStorage.setItem("cx-scroll", String(Math.round(window.scrollY))); } catch (e) {}
-  const name = encodeURIComponent(batch.name || "Course").replace(/%20/g, "+");
-  window.location.href = `https://stream.testuk.org/subjects?batchId=${encodeURIComponent(id)}&batchName=${name}`;
+  // Macro flow (batch.html): Today's classes -> Subjects -> Topics -> Lectures / Notes / DPP -> Player
+  window.location.href = `batch.html?id=${encodeURIComponent(id)}`;
 }
 
-function getRecentlyViewed() {
-  try { return JSON.parse(localStorage.getItem("codex-studys-recent") || "[]"); }
-  catch { return []; }
-}
-
-function addRecentlyViewed(batch) {
-  const id = batch._id || batch.batch_id;
-  if (!id) return;
-  const entry = { _id: id, name: batch.name || "Untitled course", byName: batch.byName || "", language: batch.language || "", previewImage: batch.previewImage || "" };
-  const recent = getRecentlyViewed().filter((item) => item._id !== id);
-  recent.unshift(entry);
-  localStorage.setItem("codex-studys-recent", JSON.stringify(recent.slice(0, 8)));
-}
-
-function renderRecentlyWatched() {
-  const statRecent = document.getElementById("statRecent");
-  if (statRecent) statRecent.textContent = String(getRecentlyViewed().length);
-  const section = document.getElementById("recentSection");
-  const row = document.getElementById("recentRow");
-  if (!section || !row) return;
-  const items = getRecentlyViewed();
-  if (!items.length) { section.style.display = "none"; row.innerHTML = ""; return; }
-  section.style.display = "block";
-  row.innerHTML = items.map((item) => `
-    <button class="recent-item" type="button" data-recent-id="${escapeHtml(item._id)}">
-      <img class="recent-thumb" src="${escapeHtml(item.previewImage || FALLBACK_THUMB)}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.src='${FALLBACK_THUMB}'">
-      <span class="recent-info">
-        <span class="recent-name">${escapeHtml(item.name || "Course")}</span>
-        <span class="recent-sub">${escapeHtml(item.byName || item.language || "Continue watching")}</span>
-      </span>
-    </button>`).join("");
-  row.querySelectorAll("[data-recent-id]").forEach((button) => {
-    button.addEventListener("click", () => {
-      const id = button.dataset.recentId;
-      const full = allBatches.find((batch) => (batch._id || batch.batch_id) === id);
-      openBatch(full || items.find((item) => item._id === id));
-    });
-  });
-}
-
-function setupRecentlyWatched() {
-  renderRecentlyWatched();
-  document.getElementById("recentClearBtn")?.addEventListener("click", () => {
-    localStorage.removeItem("codex-studys-recent");
-    renderRecentlyWatched();
-    showToast("Recently watched cleared.");
-  });
-}
-
-function setupQuickInstall() {
-  const button = document.getElementById("installQuickBtn");
-  if (!button) return;
-  button.addEventListener("click", () => openModal("installModal"));
-}
-
-function getFavorites() {
-  try { return JSON.parse(localStorage.getItem("codex-studys-favorites") || "[]"); }
-  catch { return []; }
-}
-
-function isFavorite(id) {
-  return getFavorites().includes(id);
-}
-
-function toggleFavorite(id) {
-  const favorites = getFavorites();
-  const index = favorites.indexOf(id);
-  if (index === -1) favorites.push(id); else favorites.splice(index, 1);
-  localStorage.setItem("codex-studys-favorites", JSON.stringify(favorites));
-  return favorites.includes(id);
-}
-
-function updateFavoritesCount() {
-  const count = getFavorites().length;
-  const button = $('.filter-row .filter[data-filter="favorites"]');
-  if (button) button.textContent = count ? `❤ Favorite Batches (${count})` : "❤ Favorite Batches";
-  const navBadge = $("#favNavBadge");
-  if (navBadge) {
-    navBadge.textContent = String(count);
-    navBadge.style.display = count ? "grid" : "none";
-  }
-  const statFav = $("#statFav");
-  if (statFav) statFav.textContent = count.toLocaleString();
-}
-
-function filteredBatches() {
-  let batches;
-  if (activeFilter === "favorites") {
-    const favorites = getFavorites();
-    batches = allBatches.filter((batch) => favorites.includes(batch._id || batch.batch_id || ""));
-  } else {
-    batches = allBatches.filter((batch) => activeFilter === "all" || categoryFor(batch) === activeFilter);
-  }
-  if (langFilter !== "all") {
-    batches = batches.filter((batch) => (batch.language || "").toLowerCase().includes(langFilter));
-  }
-  if (searchQuery.trim()) {
-    batches = deepSearch(batches, searchQuery);
-  }
-  if (sortMode === "az") {
-    batches = [...batches].sort((a, b) => (a.name || "").localeCompare(b.name || ""));
-  } else if (sortMode === "za") {
-    batches = [...batches].sort((a, b) => (b.name || "").localeCompare(a.name || ""));
-  } else if (sortMode === "newest") {
-    batches = [...batches].sort((a, b) => new Date(b.startDate || 0) - new Date(a.startDate || 0));
-  }
-  return batches;
-}
-
-function formatDate(value) {
-  if (!value) return "";
-  const date = new Date(value);
-  if (isNaN(date)) return "";
-  return date.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
-}
-
-function isRecent(value) {
-  if (!value) return false;
-  const date = new Date(value);
-  if (isNaN(date)) return false;
-  const days = (Date.now() - date.getTime()) / 86400000;
-  return days >= 0 && days <= 21;
-}
-
-function courseCard(batch) {
-  const title = escapeHtml(batch.name || "Untitled course");
-  const description = escapeHtml(batch.byName || "Structured learning for your next milestone");
-  const language = escapeHtml(batch.language || "Self-paced");
-  const category = categoryFor(batch);
-  const image = escapeHtml(batch.previewImage || FALLBACK_THUMB);
-  const id = escapeHtml(batch._id || batch.batch_id || "");
-  const favActive = isFavorite(id);
-  const startDate = formatDate(batch.startDate);
-  const fresh = isRecent(batch.startDate);
-  return `
-    <article class="course-card" data-id="${id}" tabindex="0" role="button" aria-label="Open ${title}">
-      <div class="course-thumb">
-        <div class="thumb-fallback thumb-shimmer"></div>
-        <img src="${image}" alt="" loading="lazy" referrerpolicy="no-referrer" onload="this.classList.add('loaded');this.previousElementSibling.style.display='none'" onerror="this.style.display='none'">
-        <span class="course-tag">${escapeHtml(category)}</span>
-        ${fresh ? '<span class="course-tag course-tag-new">NEW</span>' : ""}
-        <button class="fav-btn${favActive ? " active" : ""}" type="button" data-fav-id="${id}" aria-label="${favActive ? "Remove from favorites" : "Add to favorites"}" aria-pressed="${favActive}">
-          <svg viewBox="0 0 24 24" fill="${favActive ? "currentColor" : "none"}" stroke="currentColor" stroke-width="2"><path d="M12 21s-7.2-4.5-9.6-9C.6 8.1 2.4 4.5 6 4.2c2.1-.15 3.6 1.05 6 3.3 2.4-2.25 3.9-3.45 6-3.3 3.6.3 5.4 3.9 3.6 7.8-2.4 4.5-9.6 9-9.6 9Z"/></svg>
-        </button>
-        <button class="info-btn" type="button" data-info-id="${id}" aria-label="Quick view details">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 7.6v.6"/></svg>
-        </button>
-        ${getNote(id) ? '<span class="note-badge">📝 Note</span>' : ""}
-      </div>
-      <div class="course-chips"><span class="chip">${language}</span><span class="chip chip-accent">${escapeHtml(category)}</span></div>
-      <div class="course-body">
-        <h3 class="course-title">${title}</h3>
-        <p class="course-description">${description}</p>
-        <div class="course-meta"><span>${startDate ? `📅 ${startDate}` : language}</span><button class="course-cta" type="button">Let's Study <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button></div>
-      </div>
-    </article>`;
-}
-
-function syncUrlParams() {
-  const params = new URLSearchParams();
-  if (activeFilter !== "all") params.set("filter", activeFilter);
-  if (searchQuery.trim()) params.set("q", searchQuery.trim());
-  if (sortMode !== "relevance") params.set("sort", sortMode);
-  if (langFilter !== "all") params.set("lang", langFilter);
-  const query = params.toString();
-  const newUrl = query ? `${window.location.pathname}?${query}` : window.location.pathname;
-  window.history.replaceState(null, "", newUrl);
-}
-
-function renderBatches() {
-  const grid = $("#batchGrid");
-  const loadMoreBtn = $("#loadMoreBtn");
-  const batches = filteredBatches();
-  const visible = batches.slice(0, visibleCount);
-  const filterLabel = activeFilter === "all" ? "courses" : activeFilter === "favorites" ? "favorite courses" : `${activeFilter.toUpperCase()} courses`;
-  const noteText = batches.length
-    ? `Showing ${visible.length} of ${batches.length.toLocaleString()} ${filterLabel}.`
-    : activeFilter === "favorites" ? "No favorites yet. Tap the heart on any course to save it here." : "No courses matched that filter yet.";
-  $("#resultsNote").textContent = noteText;
-  const announcer = $("#filterAnnouncer");
-  if (announcer) announcer.textContent = noteText;
-  grid.innerHTML = visible.length ? visible.map(courseCard).join("") : '<div class="empty">Try another category or search the full library.</div>';
-  $$(".course-card").forEach((card, index) => {
-    card.addEventListener("click", () => openBatch(visible[index]));
-    card.addEventListener("keydown", (event) => {
-      if (event.key === "Enter" || event.key === " ") {
-        event.preventDefault();
-        openBatch(visible[index]);
-      }
-    });
-  });
-  $$(".fav-btn").forEach((button) => {
-    button.addEventListener("click", (event) => {
-      event.stopPropagation();
-      const nowActive = toggleFavorite(button.dataset.favId);
-      button.classList.toggle("active", nowActive);
-      button.setAttribute("aria-pressed", String(nowActive));
-      button.querySelector("svg").setAttribute("fill", nowActive ? "currentColor" : "none");
-      if (nowActive) {
-        button.classList.remove("pop");
-        void button.offsetWidth;
-        button.classList.add("pop");
-      }
-      if (activeFilter === "favorites" && !nowActive) renderBatches();
-      updateFavoritesCount();
-    });
-  });
-  $$(".info-btn").forEach((button) => {
-    button.addEventListener("click", (event) => {
-      event.stopPropagation();
-      const batch = visible.find((item) => (item._id || item.batch_id || "") === button.dataset.infoId);
-      if (batch) openDetail(batch);
-    });
-  });
-  if (loadMoreBtn) {
-    const remaining = batches.length - visible.length;
-    loadMoreBtn.style.display = remaining > 0 ? "inline-flex" : "none";
-    loadMoreBtn.textContent = remaining > 0 ? "Loading more courses…" : "";
-  }
-  const clearBtn = $("#clearFiltersBtn");
-  if (clearBtn) clearBtn.style.display = (activeFilter !== "all" || searchQuery.trim()) ? "inline-flex" : "none";
-  syncUrlParams();
-}
-
-function getSearchHistory() {
-  try { return JSON.parse(localStorage.getItem("codex-studys-search-history") || "[]"); }
-  catch { return []; }
-}
-
-function addSearchHistory(term) {
-  const trimmed = term.trim();
-  if (!trimmed) return;
-  const history = getSearchHistory().filter((item) => item.toLowerCase() !== trimmed.toLowerCase());
-  history.unshift(trimmed);
-  localStorage.setItem("codex-studys-search-history", JSON.stringify(history.slice(0, 6)));
-}
-
-function highlightMatch(text, query) {
-  const safe = escapeHtml(text || "");
-  if (!query) return safe;
-  const words = query.trim().toLowerCase().split(/\s+/).filter(Boolean).map((w) => escapeHtml(w).replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
-  if (!words.length) return safe;
-  return safe.replace(new RegExp(`(${words.join("|")})`, "gi"), "<mark>$1</mark>");
-}
-
-function renderSearchResults(query = "") {
-  const results = $("#searchResults");
-  const normalized = query.trim().toLowerCase();
-  if (!normalized) {
-    const history = getSearchHistory();
-    const recent = getRecentlyViewed();
-    if (!history.length && !recent.length) {
-      results.innerHTML = '<div class="search-hint">Start typing to find your next course.</div>';
-      return;
-    }
-    let html = "";
-    if (history.length) {
-      html += `<div class="search-hint" style="text-align:left;margin-bottom:2px;">Recent searches</div>
-        <div class="search-history-row">${history.map((term) => `<button type="button" class="search-history-chip">${escapeHtml(term)}</button>`).join("")}</div>`;
-    }
-    if (recent.length) {
-      html += `<div class="search-hint" style="text-align:left;margin-bottom:2px;">Recently viewed</div>` + recent.map((batch) => `
-        <div class="search-result" data-id="${escapeHtml(batch._id)}">
-          <div class="search-result-thumb">${batch.previewImage ? `<img src="${escapeHtml(batch.previewImage)}" alt="" referrerpolicy="no-referrer" onerror="window.__thumbFallback(this)">` : THUMB_PLACEHOLDER_SVG}</div>
-          <div><strong>${escapeHtml(batch.name)}</strong><small>${escapeHtml(batch.byName || batch.language || "Course")}</small></div>
-        </div>`).join("");
-    }
-    results.innerHTML = html;
-    $$(".search-history-chip").forEach((chip, index) => chip.addEventListener("click", () => {
-      const input = $("#searchInput");
-      if (input) { input.value = history[index]; renderSearchResults(history[index]); }
-    }));
-    $$(".search-result").forEach((result, index) => result.addEventListener("click", () => {
-      openBatch(recent[index]);
-      closeModal("searchModal");
-    }));
-    return;
-  }
-  const matches = deepSearch(allBatches, normalized).slice(0, 40);
-  if (!matches.length) {
-    results.innerHTML = '<div class="search-hint">No matches yet. Try a subject, exam or class.</div>';
-    return;
-  }
-  results.innerHTML = `<div class="search-hint" style="text-align:left;margin-bottom:2px;">${matches.length} result${matches.length === 1 ? "" : "s"}</div>` + matches.map((batch) => `
-    <div class="search-result" data-id="${escapeHtml(batch._id || batch.batch_id || "")}">
-      <div class="search-result-thumb">${batch.previewImage ? `<img src="${escapeHtml(batch.previewImage)}" alt="" referrerpolicy="no-referrer" onerror="window.__thumbFallback(this)">` : THUMB_PLACEHOLDER_SVG}</div>
-      <div><strong>${highlightMatch(batch.name || "Untitled course", normalized)}</strong><small>${escapeHtml(batch.byName || batch.language || "Course")}</small></div>
-      ${isRecent(batch.startDate) ? '<span class="search-new-badge">new</span>' : ""}
-    </div>`).join("");
-  $$(".search-result").forEach((result, index) => result.addEventListener("click", () => {
-    openBatch(matches[index]);
-    closeModal("searchModal");
-  }));
-}
-
-function openModal(id) {
-  const modal = document.getElementById(id);
-  if (!modal) return;
-  $$(".overlay.visible").forEach((other) => { if (other.id !== id) other.classList.remove("visible"); });
-  modal.classList.add("visible");
-  document.body.classList.add("modal-open");
-  modal.querySelector("input")?.focus();
-}
-
-function closeModal(id) {
-  document.getElementById(id)?.classList.remove("visible");
-  if (!$$(".overlay.visible").length) document.body.classList.remove("modal-open");
-}
-
-function showToast(message) {
-  const oldToast = $(".toast");
-  oldToast?.remove();
-  const toast = document.createElement("div");
-  toast.className = "toast";
-  toast.textContent = message;
-  document.body.appendChild(toast);
-  window.setTimeout(() => toast.remove(), 2800);
-}
 
 const BATCH_CACHE_KEY = "cx-batches-cache-v1";
 
@@ -411,6 +93,53 @@ function restoreScroll() {
   } catch (e) {}
 }
 
+/* ---------- Macro batch catalog (live) ---------- */
+const CATALOG_URL = "https://studystark.github.io/batches/batches.json";
+const CATALOG_FALLBACK_URL = "/api/content/__catalog";
+
+function parseExam(exam) {
+  if (!exam) return "";
+  try {
+    const parsed = JSON.parse(exam);
+    if (Array.isArray(parsed)) return parsed.filter(Boolean).join(", ");
+  } catch (e) { /* plain string */ }
+  return String(exam);
+}
+
+function mapCatalogRow(row) {
+  const exam = parseExam(row.exam);
+  const byName = [row.class ? `Class ${row.class}` : "", exam].filter(Boolean).join(" · ");
+  return {
+    _id: String(row.batch_id),
+    name: String(row.name),
+    byName,
+    startDate: row.start_date || "",
+    previewImage: row.photo || "",
+    language: row.language || "",
+    type: "",
+    slug: "",
+    subBatches: [],
+    updatedAt: row.updated_at || ""
+  };
+}
+
+async function fetchCatalog() {
+  let json = null;
+  for (const url of [CATALOG_URL, CATALOG_FALLBACK_URL]) {
+    try {
+      const response = await fetch(url, { cache: "no-store", headers: { Accept: "application/json" } });
+      if (!response.ok) continue;
+      const data = await response.json();
+      if (data && Array.isArray(data.data)) { json = data; break; }
+    } catch (e) { /* try next source */ }
+  }
+  if (!json) throw new Error("Course library unavailable");
+  return json.data
+    .filter((row) => row && row.batch_id && row.name)
+    .map(mapCatalogRow)
+    .sort((a, b) => String(b.updatedAt).localeCompare(String(a.updatedAt)));
+}
+
 async function loadBatches() {
   const cached = readBatchCache();
   let usedCache = false;
@@ -427,10 +156,7 @@ async function loadBatches() {
     } else if (grid && !allBatches.length) {
       grid.innerHTML = Array.from({ length: 8 }, () => '<div class="skeleton-card"><div class="skeleton-thumb"></div><div class="skeleton-body"><div class="skeleton-line" style="width:88%"></div><div class="skeleton-line" style="width:60%"></div><div class="skeleton-line" style="width:40%"></div></div></div>').join("");
     }
-    const response = await fetch("batches.json", { cache: "no-store" });
-    if (!response.ok) throw new Error("Course library unavailable");
-    const data = await response.json();
-    const fresh = Array.isArray(data.batches) ? data.batches : [];
+    const fresh = await fetchCatalog();
     const changed = JSON.stringify(fresh) !== JSON.stringify(allBatches);
     allBatches = fresh;
     try { sessionStorage.setItem(BATCH_CACHE_KEY, JSON.stringify(fresh)); sessionStorage.setItem("cx-loaded", "1"); } catch (e) {}

@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>CODEX STUDYS — Batch</title>
+  <meta name="theme-color" content="#090b10">
+  <meta name="description" content="Today's classes, subjects, topics and lectures — CODEX STUDYS.">
+  <link rel="icon" href="assets/icon-192.png">
+  <link rel="manifest" href="manifest.json">
+  <link rel="apple-touch-icon" href="assets/icon-192.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script>
+    try {
+      var t = localStorage.getItem("codex-studys-theme"), d = document.documentElement;
+      if (t && t !== "system") d.setAttribute("data-theme", t);
+      else if (t === "system" && window.matchMedia("(prefers-color-scheme: light)").matches) d.setAttribute("data-theme", "light");
+    } catch (e) {}
+  </script>
+  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="macro.css">
+</head>
+<body class="mx-page">
+  <header class="topbar">
+    <div class="shell nav-row">
+      <a class="brand" href="index.html" aria-label="CODEX STUDYS home">
+        <span class="brand-mark"><img src="assets/icon-192.png" alt="CODEX STUDYS"></span>
+        <span class="brand-copy">CODEX <span>STUDYS</span></span>
+      </a>
+      <nav class="mx-nav" aria-label="Primary navigation">
+        <a class="nav-link" href="index.html">Home</a>
+        <a class="nav-link" href="index.html#courses">Courses</a>
+        <a class="btn btn-telegram mx-btn-sm" href="https://t.me/s/codexstudys" target="_blank" rel="noopener">Telegram</a>
+        <a class="btn btn-whatsapp mx-btn-sm" href="https://whatsapp.com/channel/0029VbDI2CGEAKWNSoya5L2w" target="_blank" rel="noopener">WhatsApp</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="shell mx-main" id="app" aria-live="polite"></main>
+
+  <footer><div class="shell footer-row"><div class="footer-brand">CODEX <span>STUDYS</span> · smart learning, made simpler.</div><div><a href="https://t.me/s/codexstudys" target="_blank" rel="noopener">@codexstudys</a></div></div></footer>
+
+  <script src="macro.js"></script>
+</body>
+</html>
